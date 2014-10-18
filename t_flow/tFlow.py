@@ -6,7 +6,19 @@ import cx_Oracle
 import datetime
 import sys
 import fileinput  
+from pyasn1.type.univ import Null
 
+class OraConn():
+    def __init__(self,connstr):
+        self.connstr =connstr # "manage_taxi/taxixjtu@traffic"  
+        self.conn = cx_Oracle.Connection(self.connstr)  
+        self.cur = self.conn.cursor()  
+
+    def __del__(self):
+        self.conn.commit();  
+        self.cur.close();  
+        self.conn.close(); 
+          
 class AreaGrid():
     def __init__(self,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len):
         self.lon_min=lon_min#最小经度
@@ -17,43 +29,53 @@ class AreaGrid():
         self.each_lat_len=each_lat_len#每单位纬度的长度
         self.each_grid_len=each_grid_len#划分的每个格子的边长
         if ((self.lon_max-self.lon_min)*self.each_lon_len)%self.each_grid_len==0:    
-            self.col_num_sum=((self.lon_max-self.lon_min)*self.each_lon_len)/self.each_grid_len
+            self.col_num_sum=int(((self.lon_max-self.lon_min)*self.each_lon_len)//self.each_grid_len)
         else:
-            self.col_num_sum=((self.lon_max-self.lon_min)*self.each_lon_len)/self.each_grid_len+1#总列数，最后一个格子可能不足 each_grid_len的长度
+            self.col_num_sum=int(((self.lon_max-self.lon_min)*self.each_lon_len)//self.each_grid_len)+1#总列数，最后一个格子可能不足 each_grid_len的长度
         if ((self.lat_max-self.lat_min)*self.each_lat_len)%self.each_grid_len==0:
-            self.row_num_sum=((self.lat_max-self.lat_min)*self.each_lat_len)/self.each_grid_len
+            self.row_num_sum=int(((self.lat_max-self.lat_min)*self.each_lat_len)//self.each_grid_len)
         else:
-            self.row_num_sum=((self.lat_max-self.lat_min)*self.each_lat_len)/self.each_grid_len+1#总行数，最后一个格子可能不足 each_grid_len的长度
-        
+            self.row_num_sum=int(((self.lat_max-self.lat_min)*self.each_lat_len)//self.each_grid_len)+1#总行数，最后一个格子可能不足 each_grid_len的长度
+        self.grid_num_sum=self.row_num_sum*self.col_num_sum
     def getPosition(self,lon_v,lat_v):
         if lon_v>self.lon_min and lon_v<self.lon_max and lat_v>self.lat_min and lat_v<self.lat_max:            
             mod_res=(lon_v-self.lon_min)*self.each_lon_len%self.each_grid_len
             if mod_res==0:
-                col_num=(lon_v-self.lon_min)*self.each_lon_len/self.each_grid_len
+                col_num=int((lon_v-self.lon_min)*self.each_lon_len//self.each_grid_len)
             else:
-                col_num=(lon_v-self.lon_min)*self.each_lon_len/self.each_grid_len+1
+                col_num=int((lon_v-self.lon_min)*self.each_lon_len//self.each_grid_len)+1
             mod_res=(lat_v-self.lat_min)*self.each_lat_len%self.each_grid_len
             if mod_res==0:
-                row_num=(lat_v-self.lat_min)*self.each_lat_len/self.each_grid_len
+                row_num=int((lat_v-self.lat_min)*self.each_lat_len//self.each_grid_len)
             else:
-                row_num=(lat_v-self.lat_min)*self.each_lat_len/self.each_grid_len+1
+                row_num=int((lat_v-self.lat_min)*self.each_lat_len//self.each_grid_len)+1
             ser_num=self.col_num_sum*(row_num-1)+col_num
             return (row_num,col_num,ser_num)
         else:
-            return
+            return (0,0,0)
     def getGPS(self,row_num,col_num,ser_num):
         return 
     
-class OraConn():
-    def __init__(self):
-        self.connstr = "manage_taxi/taxixjtu@traffic"  
-        self.conn = cx_Oracle.Connection(self.connstr)  
-        self.cur = self.conn.cursor()  
-
-    def __del__(self):
-        self.conn.commit();  
-        self.cur.close();  
-        self.conn.close();   
+class TaxiStatistics():
+    def __init__(self,connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len):
+        self.connstr = connstr 
+        self.lon_min=lon_min#最小经度
+        self.lon_max=lon_max#最大经度
+        self.lat_min=lat_min#最小纬度
+        self.lat_max=lat_max#最大纬度
+        self.each_lon_len=each_lon_len#每单位经度的长度
+        self.each_lat_len=each_lat_len#每单位纬度的长度
+        self.each_grid_len=each_grid_len#划分的每个格子的边长
+        self.area_grid=AreaGrid(self.lon_min,self.lon_max,self.lat_min,self.lat_max,self.each_lon_len,self.each_lat_len,self.each_grid_len)
+        self.grid_stat_list=[]#(ser_num,row_num,col_num,on_cou,off_cou,empty_cou,full_cou) 格子序号、行号、列号、上车次数、下车次数、空车车次、实车车次
+        for row_n in range(1,self.area_grid.row_num_sum+1):#初始化grid_stat_list
+            for col_n in range(1,self.area_grid.col_num_sum+1):  
+                ser_n=(row_n-1)*self.area_grid.col_num_sum+col_n            
+                self.grid_stat_list.append((ser_n,row_n,col_n,0,0,0,0))
+        
+#         self.conn = cx_Oracle.Connection(self.connstr)  
+#         self.cur = self.conn.cursor()  
+     
     def countTaxiNo(self):
         sql = "select  count(distinct t.licenseplateno) from GPS_LOG0101 t where t.gps_time>to_date('2014-01-01','yyyy-mm-dd') and t.gps_time<to_date('2014-01-02','yyyy-mm-dd')"            
         self.cur.execute(sql)         
@@ -144,7 +166,7 @@ class OraConn():
             line = f.readline()
         f.close()  
         
-    def staticGridOneTaxi(self,taxiNum):
+    def staticGridOneTaxiUsingOra(self,taxiNum):
         '''
                         追踪一辆车在一天内的上传、下车行为，每出现一次，在相应区域格子的上车或者下车计数字段加1
                         追踪一辆车在一天内的在每个格子的空车车次，在相应格子的空车车次上加1
@@ -231,7 +253,7 @@ class OraConn():
             taxiNo=(line.strip('\n').split(",")[1]).replace('陕','%')
             print (taxiNo)  
             if taxiNo!="%AU8397":
-                self.staticGridOneTaxi(taxiNo)                     
+                self.staticGridOneTaxiUsingOra(taxiNo)                     
             line = f.readline()
         f.close() 
     def staticGridAllTaxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子
@@ -241,9 +263,68 @@ class OraConn():
             #print line,    # 后面跟 ',' 将忽略换行符
             taxiNo=(line.strip('\n')).replace('陕','%')
             print (taxiNo)  
-            self.staticGridOneTaxi(taxiNo)                     
+            self.staticGridOneTaxiUsingOra(taxiNo)                     
             line = f.readline()
-        f.close()       
+        f.close()
+    def stat_grid_1_taxi(self,taxi_no,i):        
+        stat_now="4"#车的当前状态
+        (row_num_now,col_num_now,ser_num_now)=(0,0,0)#车当前所在的格子序号  
+        ora_con=OraConn(self.connstr)
+        pr={'taxiNo':taxi_no}
+        sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
+        ora_con.cur.execute(sql,pr) 
+        row=ora_con.cur.fetchone() 
+        while row:#遍历该车的所有记录
+            (gps_time,longitude,latitude,car_stat1)=(row[0],float(row[1]),float(row[2]),row[3])
+            (row_num,col_num,ser_num)=self.area_grid.getPosition(longitude,latitude)           
+            if (row_num,col_num,ser_num)==(0,0,0):#车辆不在在设定的范围内的格子里,遍历下一条记录
+                row=ora_con.cur.fetchone()
+                continue
+            if ser_num_now==0:#这是第一条记录，更新当前参数值
+                stat_now=car_stat1
+                (row_num_now,col_num_now,ser_num_now)=(row_num,col_num,ser_num)
+                row=ora_con.cur.fetchone()
+                continue
+            #统计格子的空车和实车的车次数量
+            if car_stat1!=stat_now or ser_num!=ser_num_now:#如果车的状态发生改变，或者格子发生改变                      
+                if stat_now=="4":
+                    (ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num_now-1]
+                    self.grid_stat_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou+1,full_cou)
+                if stat_now=="5":
+                    (ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num_now-1]
+                    self.grid_stat_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou,full_cou+1)   
+                (row_num_now,col_num_now,ser_num_now)=(row_num,col_num,ser_num)
+            #统计格子的上车次数和下车次数
+            if car_stat1!=stat_now:
+                if stat_now=="4" and car_stat1=="5":#上车行为
+                    (ser_num,row_num,col_num,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num-1]
+                    self.grid_stat_list[ser_num-1]=(ser_num,row_num,col_num,on_cou+1,off_cou,empty_cou,full_cou)
+                elif stat_now=="5" and car_stat1=="4":#下车行为
+                    (ser_num,row_num,col_num,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num-1]
+                    self.grid_stat_list[ser_num-1]=(ser_num,row_num,col_num,on_cou,off_cou+1,empty_cou,full_cou)
+                stat_now=car_stat1 
+            row=ora_con.cur.fetchone()              
+            continue
+        if i==1 or i%100==0 or i==11728:
+            fl=open('statisticGridAll'+str(i)+'.txt', 'a')
+            fl.write(str(i)+"辆\n")
+            for i in self.grid_stat_list:
+                fl.write(i.__str__())
+                fl.write("\n")
+            fl.close()
+    def static_grid_all_taxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子
+        f = open("result1All_20141017.txt") 
+        line = f.readline()  
+        i=0           # 调用文件的 readline()方法
+        while line!="\n":
+            i+=1
+            #print line,    # 后面跟 ',' 将忽略换行符
+            taxiNo=(line.strip('\n')).replace('陕','%')
+            print (taxiNo)  
+            self.stat_grid_1_taxi(taxiNo,i)                     
+            line = f.readline()
+        f.close()  
+        
     def test(self):
 #         num={'num':'%AU8397'}
 #         sql = "select  t.licenseplateno from GPS_LOG0101 t where  t.licenseplateno like :num"            
@@ -276,8 +357,8 @@ class OraConn():
                 print (line,)
 if __name__ == '__main__':
     
-    taxiNo="%AU8397"
-    oraConn=OraConn()
+#     taxiNo="%AU8397"
+#     oraConn=OraConn()
 #     oraConn.selectTaxiSample()
 #     oraConn.test()
 #     oraConn.countTaxiNo()
@@ -286,5 +367,15 @@ if __name__ == '__main__':
 #     oraConn.track100Taxi() 
 
 #     oraConn.staticGrid(taxiNo)
-    oraConn.staticGridAllTaxi()
+#     oraConn.staticGridAllTaxi()
+    lon_min=108.852775#最小经度
+    lon_max=109.056295#最大经度
+    lat_min=34.200207#最小纬度
+    lat_max=34.349599#最大纬度
+    each_lon_len=85300#每单位经度的长度
+    each_lat_len=111300#每单位纬度的长度
+    each_grid_len=50#划分的每个格子的边长
+    connstr="manage_taxi/taxixjtu@traffic"     
+    taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
+    taxiStatistics.static_grid_all_taxi()
     
