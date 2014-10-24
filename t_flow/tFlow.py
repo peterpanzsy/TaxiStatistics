@@ -10,16 +10,21 @@ from pyasn1.type.univ import Null
 
 class OraConn():
     def __init__(self,connstr):
-        self.connstr =connstr # "manage_taxi/taxixjtu@traffic"  
+        self.connstr =connstr # "manage_taxi/taxixjtu@traffic" 
+      
+    def open(self):
         self.conn = cx_Oracle.Connection(self.connstr)  
         self.cur = self.conn.cursor()  
-
-    def __del__(self):
+    def close(self):
         self.conn.commit();  
         self.cur.close();  
         self.conn.close(); 
+
           
 class AreaGrid():
+    '''
+    按经纬度将区域划分为n个格子
+    '''
     def __init__(self,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len):
         self.lon_min=lon_min#最小经度
         self.lon_max=lon_max#最大经度
@@ -38,6 +43,9 @@ class AreaGrid():
             self.row_num_sum=int(((self.lat_max-self.lat_min)*self.each_lat_len)//self.each_grid_len)+1#总行数，最后一个格子可能不足 each_grid_len的长度
         self.grid_num_sum=self.row_num_sum*self.col_num_sum
     def getPosition(self,lon_v,lat_v):
+        '''
+        根据经纬度，返回该地点在第几个格子
+        '''
         if lon_v>self.lon_min and lon_v<self.lon_max and lat_v>self.lat_min and lat_v<self.lat_max:            
             mod_res=(lon_v-self.lon_min)*self.each_lon_len%self.each_grid_len
             if mod_res==0:
@@ -78,52 +86,59 @@ class TaxiStatistics():
      
     def countTaxiNo(self):
         sql = "select  count(distinct t.licenseplateno) from GPS_LOG0101 t where t.gps_time>to_date('2014-01-01','yyyy-mm-dd') and t.gps_time<to_date('2014-01-02','yyyy-mm-dd')"            
-        self.cur.execute(sql)         
-        row=self.cur.fetchone()        
-        file_object = open('result20141016.txt', 'w+')        
+        conn = cx_Oracle.Connection(self.connstr)  
+        cur = conn.cursor() 
+        cur.execute(sql)         
+        row=cur.fetchone()        
+        file_object = open('taxi\\result20141016.txt', 'w+')        
         res="20140101数据中的不同车牌的车的数量:"+str(row[0])
         print ("20140101数据中的不同车牌的车的数量:"+row[0])
         file_object.write(res)  
         file_object.close()
+        conn.close()
     def selectTaxiSample(self):
-        sql = "select  distinct t.licenseplateno from GPS_LOG0101 t"            
-        self.cur.execute(sql)         
-        row=self.cur.fetchone() 
+        sql = "select  distinct t.licenseplateno from GPS_LOG0101 t"  
+        conn = cx_Oracle.Connection(self.connstr)  
+        cur = conn.cursor()           
+        cur.execute(sql)         
+        row=cur.fetchone() 
         file_object = open('result1All_20141017.txt', 'a')              
         while row:
             TAXINO=row[0]
-            row=self.cur.fetchone ()
+            row=cur.fetchone ()
             print (TAXINO)
             res=TAXINO.replace('?','陕')+"\n"
             file_object.write(res)        
         file_object.close()
+        conn.close()
     def trackOneTaxiAll(self,taxiNo):##一辆车一天内空车或实车的记录全部记下来
         sql = "select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.car_stat1='4' or t.car_stat1='5' and t.licenseplateno='陕AU8397' order by t.gps_time"            
-        self.cur.execute(sql)         
-        row=self.cur.fetchone() 
+        conn = cx_Oracle.Connection(self.connstr)  
+        cur = conn.cursor() 
+        cur.execute(sql)         
+        row=cur.fetchone() 
         file_object = open('trackOneTaxiAll20141016.txt', 'a')              
         while row:
             (gps_time,longitude,latitude,car_stat1)=(row[0],row[1],row[2],row[3])
-            row=self.cur.fetchone ()
+            row=cur.fetchone ()
             print (gps_time,longitude,latitude,car_stat1)
             file_object.write(gps_time+","+longitude+","+latitude+","+car_stat1+'\n')        
         file_object.close()
+        conn.close()
     def trackOneTaxi(self,taxiNum):
         proBeginTime=datetime.datetime.now()
+        print(proBeginTime)
         pr={'taxiNo':taxiNum}
+        #查询出该车的所有记录（一天）
+        conn = cx_Oracle.Connection(self.connstr)  
+        cur = conn.cursor() 
         sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
-        result=self.cur.execute(sql,pr) 
-        row=self.cur.fetchone() 
-        file_object = open('track100Taxi20141016.txt', 'a')
-        file_object.write("\n"+taxiNum+"的轨迹:\n")             
+        result=cur.execute(sql,pr) 
+        row=cur.fetchone() 
+#         file_object = open('track100Taxi20141016.txt', 'a')
+        file_object = open('track\\trackAllTaxi20141021.txt', 'a')
+#         file_object.write("\n"+taxiNum+"的轨迹:\n")             
  
-#         sourceLon=""
-#         sourceLat=""
-#         targetLon=""
-#         targetLat=""
-#         beginTime=""
-#         endTime=""
-#         lastTime=""
         rDistance=""
         eDistance=""
         statusNow="4"
@@ -144,21 +159,24 @@ class TaxiStatistics():
                     lastTime=endTime-beginTime
                     #traceTuple=(sourceLon,sourceLat,targetLon,targetLat,beginTime,endTime,lastTime,"","")
                     i+=1
-                    res=str(i)+","+sourceLon+","+sourceLat+","+targetLon+","+targetLat+","+beginTime.strftime("%Y-%m-%d %H:%M:%S")+","+endTime.strftime("%Y-%m-%d %H:%M:%S")+","+lastTime.__str__()+","+rDistance+","+eDistance+'\n'
+                    res=taxiNum+","+str(i)+","+sourceLon+","+sourceLat+","+targetLon+","+targetLat+","+beginTime.strftime("%Y-%m-%d %H:%M:%S")+","+endTime.strftime("%Y-%m-%d %H:%M:%S")+","+lastTime.__str__()+","+rDistance+","+eDistance+'\n'
                     print (res)
                     file_object.writelines(res) 
-            row=self.cur.fetchone ()       
+            row=cur.fetchone ()  
+        conn.close()     
         proEndTime=datetime.datetime.now()
-        file_object.write("Over!\n")
-        file_object.write("start time:"+proBeginTime.strftime("%Y-%m-%d %H:%M:%S"))
-        file_object.write("\nend time:"+proEndTime.strftime("%Y-%m-%d %H:%M:%S"))
-        file_object.write("\nlast time:"+(proEndTime-proBeginTime).__str__())
+        print(proEndTime)
+#         file_object.write("Over!\n")
+#         file_object.write("start time:"+proBeginTime.strftime("%Y-%m-%d %H:%M:%S"))
+#         file_object.write("\nend time:"+proEndTime.strftime("%Y-%m-%d %H:%M:%S"))
+#         file_object.write("\nlast time:"+(proEndTime-proBeginTime).__str__())
         
         file_object.close()   
     def track100Taxi(self):
-        f = open("result20141016.txt") 
+#         f = open("taxi\\result20141016.txt") 
+        f=open("result1All_20141017.txt")
         line = f.readline()             # 调用文件的 readline()方法
-        while line!="\n":
+        while line!="\n" and line:
             #print line,    # 后面跟 ',' 将忽略换行符
             taxiNo=(line.strip('\n').split(",")[1]).replace('陕','%')
             print (taxiNo)  
@@ -166,7 +184,7 @@ class TaxiStatistics():
             line = f.readline()
         f.close()  
         
-    def staticGridOneTaxiUsingOra(self,taxiNum):
+    def staticGridOneTaxiUsingOra(self,taxiNum):#追踪一辆车在一个格子上的行为次数，基于数据库操作
         '''
                         追踪一辆车在一天内的上传、下车行为，每出现一次，在相应区域格子的上车或者下车计数字段加1
                         追踪一辆车在一天内的在每个格子的空车车次，在相应格子的空车车次上加1
@@ -175,8 +193,10 @@ class TaxiStatistics():
         proBeginTime=datetime.datetime.now()
         pr={'taxiNo':taxiNum}
         sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
-        result=self.cur.execute(sql,pr) 
-        row=self.cur.fetchone() 
+        conn = cx_Oracle.Connection(self.connstr)  
+        cur = conn.cursor() 
+        result=cur.execute(sql,pr) 
+        row=cur.fetchone() 
         statusNow="4" #记录车的状态变化
         (emp_cou_Now,full_cou_Now,squNow)=(0,0,0)#初始化为不存在的格子
         while row:
@@ -242,11 +262,12 @@ class TaxiStatistics():
                     conn2.close();  
                     statusNow="4"
                
-            row=self.cur.fetchone ()       
+            row=cur.fetchone ()   
+        conn.close()    
         proEndTime=datetime.datetime.now()
  
-    def staticGrid100Taxi(self):
-        f = open("result20141016.txt") 
+    def staticGrid100Taxi(self):#追踪100辆车，将其行为次数加入相应格子，基于数据库
+        f = open("taxi\\result20141016.txt") 
         line = f.readline()             # 调用文件的 readline()方法
         while line!="\n":
             #print line,    # 后面跟 ',' 将忽略换行符
@@ -256,7 +277,7 @@ class TaxiStatistics():
                 self.staticGridOneTaxiUsingOra(taxiNo)                     
             line = f.readline()
         f.close() 
-    def staticGridAllTaxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子
+    def staticGridAllTaxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子，基于数据库
         f = open("result1All_20141017.txt") 
         line = f.readline()             # 调用文件的 readline()方法
         while line!="\n":
@@ -266,10 +287,16 @@ class TaxiStatistics():
             self.staticGridOneTaxiUsingOra(taxiNo)                     
             line = f.readline()
         f.close()
-    def stat_grid_1_taxi(self,taxi_no,i):        
+    def stat_grid_1_taxi(self,taxi_no,i):#追踪一辆车在一个格子上的行为次数，基于内存和文件操作        
+        '''
+                        追踪一辆车在一天内的上传、下车行为，每出现一次，在相应区域格子的上车或者下车计数字段加1
+                        追踪一辆车在一天内的在每个格子的空车车次，在相应格子的空车车次上加1
+                        追踪一辆车在一天内的在每个格子的实车车次，在相应格子的实车车次上加1
+        '''
         stat_now="4"#车的当前状态
         (row_num_now,col_num_now,ser_num_now)=(0,0,0)#车当前所在的格子序号  
         ora_con=OraConn(self.connstr)
+        ora_con.open()
         pr={'taxiNo':taxi_no}
         sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
         ora_con.cur.execute(sql,pr) 
@@ -297,26 +324,27 @@ class TaxiStatistics():
             #统计格子的上车次数和下车次数
             if car_stat1!=stat_now:
                 if stat_now=="4" and car_stat1=="5":#上车行为
-                    (ser_num,row_num,col_num,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num-1]
-                    self.grid_stat_list[ser_num-1]=(ser_num,row_num,col_num,on_cou+1,off_cou,empty_cou,full_cou)
+                    (ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num_now-1]
+                    self.grid_stat_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,on_cou+1,off_cou,empty_cou,full_cou)
                 elif stat_now=="5" and car_stat1=="4":#下车行为
-                    (ser_num,row_num,col_num,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num-1]
-                    self.grid_stat_list[ser_num-1]=(ser_num,row_num,col_num,on_cou,off_cou+1,empty_cou,full_cou)
+                    (ser_num_now,row_num_now,col_num_now,on_cou,off_cou,empty_cou,full_cou)=self.grid_stat_list[ser_num_now-1]
+                    self.grid_stat_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,on_cou,off_cou+1,empty_cou,full_cou)
                 stat_now=car_stat1 
             row=ora_con.cur.fetchone()              
             continue
+        ora_con.close()
         if i==1 or i%100==0 or i==11728:
-            fl=open('statisticGridAll'+str(i)+'.txt', 'a')
+            fl=open('grid_cou\\statisticGridAll'+str(i)+'.txt', 'a')
             fl.write(str(i)+"辆\n")
             for i in self.grid_stat_list:
                 fl.write(i.__str__())
                 fl.write("\n")
             fl.close()
-    def static_grid_all_taxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子
+    def static_grid_all_taxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子，基于内存和文件
         f = open("result1All_20141017.txt") 
         line = f.readline()  
         i=0           # 调用文件的 readline()方法
-        while line!="\n":
+        while line!="\n" and line:
             i+=1
             #print line,    # 后面跟 ',' 将忽略换行符
             taxiNo=(line.strip('\n')).replace('陕','%')
@@ -338,7 +366,7 @@ class TaxiStatistics():
 #         file_object.write((datetime.datetime.now()-row[0]).__str__())
 #         file_object.close()
         taxiList=[]
-        f = open("result20141016.txt") 
+        f = open("taxi\\result20141016.txt") 
         line = f.readline()             # 调用文件的 readline()方法
         while line!="\n":
             #print line,    # 后面跟 ',' 将忽略换行符
