@@ -1,4 +1,9 @@
 eclipse.preferences.version=1
 encoding//t_flow/\ track_from_db.py=utf-8
+encoding//t_flow/assistant.py=utf-8
+encoding//t_flow/circle_track.py=utf-8
 encoding//t_flow/deal_from_file.py=utf-8
-encoding//t_flow/tFlow.py=utf-8
+encoding//t_flow/distance_from_coordinate.py=utf-8
+encoding//t_flow/file_split.py=utf-8
+encoding//t_flow/taxi_grid_statistic.py=utf-8
+encoding//t_flow/taxi_shift.py=utf-8

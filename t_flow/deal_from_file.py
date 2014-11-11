@@ -3,6 +3,10 @@
 Created on
 
 @author: zsy
+
+1、生成持续时间的向量
+2、计算每条路线的交易数量 
+3、统计每个格子的上车率、下车率、上车率-下车率  
 '''
 import csv
 class AreaGrid():
