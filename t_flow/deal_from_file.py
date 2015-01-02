@@ -89,11 +89,12 @@ class DealFlow():
         根据输入的经纬度求出相应的格子号，将字典中相应的值加1 
         循环读取下一条记录
         '''
-        f = open("track100Taxi20141016_dealed.txt") 
+#         f = open("track100Taxi20141016_dealed.txt") 
+        f=open("track\\trackAllTaxi20141021.txt")
         line=f.readline()
         while line:
-            linelist=line.split("\t")
-            (lon_sour,lat_sour,lon_des,lat_des)=(float(linelist[1]),float(linelist[2]),float(linelist[3]),float(linelist[4]))
+            linelist=line.split(",")
+            (lon_sour,lat_sour,lon_des,lat_des)=(float(linelist[2]),float(linelist[3]),float(linelist[4]),float(linelist[5]))
             (row_num_sour,col_num_sour,ser_num_sour)=self.area_grid.getPosition(lon_sour, lat_sour)
             (row_num_des,col_num_des,ser_num_des)=self.area_grid.getPosition(lon_des, lat_des)
             if (row_num_des,col_num_des,ser_num_des)==(0,0,0) or (row_num_sour,col_num_sour,ser_num_sour)==(0,0,0):
@@ -106,7 +107,7 @@ class DealFlow():
             line=f.readline()
         f.close()
         
-        csvfile = file('track100TaxiTraCouX_1000.csv', 'wb')
+        csvfile = file('D:\\myeclipseworkspace\\TaxiStatistics\\t_flow\\track\\tracktrackTaxiTraCou5000.csv', 'wb')
         writer = csv.writer(csvfile)
         reslist=[]
         for k in self.sour_des_tracou_dict:
@@ -202,13 +203,11 @@ if __name__ == '__main__':
 #     lat_max=34.349599#最大纬度
     each_lon_len=85300#每单位经度的长度
     each_lat_len=111300#每单位纬度的长度
-    each_grid_len=1000#划分的每个格子的边长
+    each_grid_len=5000#划分的每个格子的边长
     dealFlow=DealFlow(lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
 #     dealFlow.gen_duration_vector_1()
-#     dealFlow.calc_sour_des_tra_num()
+    dealFlow.calc_sour_des_tra_num()
 
 
 
 #     dealFlow.calc_grid_rate()
-#     print(dealFlow.area_grid.grid_num_sum)
-    dealFlow.calc_sour_des_tra_num()

@@ -102,6 +102,11 @@ class TaxiStatistics():
                         追踪一辆车在15天内的在每个格子的空车车次，在相应格子的空车车次上加1
                         追踪一辆车在15天内的在每个格子的熄火车次，在相应格子的熄火车次上加1
         '''
+        grid_shift_list=[]#(ser_num,row_num,col_num,empty_cou,flameout_cou) 格子序号、行号、列号、空车车次、熄火车次
+        for row_n in range(1,self.area_grid.row_num_sum+1):#初始化grid_shift_list
+            for col_n in range(1,self.area_grid.col_num_sum+1):  
+                ser_n=(row_n-1)*self.area_grid.col_num_sum+col_n            
+                grid_shift_list.append((ser_n,row_n,col_n,0,0))
         print(datetime.datetime.now())
         stat_now="0"#车的当前状态
         (row_num_now,col_num_now,ser_num_now)=(0,0,0)#车当前所在的格子序号  
@@ -125,11 +130,11 @@ class TaxiStatistics():
                     #统计格子的空车和熄火的车次数量
                     if car_stat!=stat_now or ser_num!=ser_num_now:#如果车的状态发生改变，或者格子发生改变                      
                         if stat_now=="4":
-                            (ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou)=self.grid_shift_list[ser_num_now-1]
-                            self.grid_shift_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,empty_cou+1,flameout_cou) 
+                            (ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou)=grid_shift_list[ser_num_now-1]
+                            grid_shift_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,empty_cou+1,flameout_cou) 
                         if stat_now=="7":
-                            (ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou)=self.grid_shift_list[ser_num_now-1]
-                            self.grid_shift_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou+1)               
+                            (ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou)=grid_shift_list[ser_num_now-1]
+                            grid_shift_list[ser_num_now-1]=(ser_num_now,row_num_now,col_num_now,empty_cou,flameout_cou+1)               
                         (row_num_now,col_num_now,ser_num_now)=(row_num,col_num,ser_num)
                         stat_now=car_stat  
         except Exception as e:
@@ -139,8 +144,8 @@ class TaxiStatistics():
             f.write("\n")
             f.close()            
         print(datetime.datetime.now())
-        writer=csv.writer(file('F:\\TaxiData\\shift_grid\\shift_grid_'+taxi_no+'.csv','wb'))
-        grid_shift_list=sorted(self.grid_shift_list, key=itemgetter(3,4)) 
+        writer=csv.writer(file('F:\\TaxiData\\shift_grid\\2shift_grid_'+taxi_no+'.csv','wb'))
+        grid_shift_list=sorted(grid_shift_list, key=itemgetter(3,4),reverse=True) 
         writer.writerows(grid_shift_list) 
       
     
@@ -151,7 +156,7 @@ class TaxiStatistics():
         i=0          
         while line!="\n" and line:
             i+=1
-            if i<=11734:
+            if i<=15:
                 line = f.readline()
                 continue
             taxiNo=(line.strip('\n')).replace('陕','').replace("灯",'').replace("交",'').replace("测",'')
@@ -159,7 +164,58 @@ class TaxiStatistics():
             self.stat_shift_1_taxi(taxiNo,i)                     
             line = f.readline()
         f.close()  
-            
+    
+    def find_shift_1_taxi(self,taxi_no,i):#
+        print(datetime.datetime.now())
+#         shiftlist=[]
+        try:
+            r=0
+            with codecs.open('F:\\TaxiData\\shift_grid\\shift_grid_'+taxi_no+'.csv','rb',encoding='gbk') as f : # 使用with读文件 
+                for linetemp in f:
+                    r+=1
+                    if r==642746:
+                        linelist=linetemp.split(",")
+                        (ser_num,row_num,col_num,empty_cou,flameout_cou)=(int(linelist[0]),int(linelist[1]),int(linelist[2]),int(linelist[3]),int(linelist[4]))  
+                        if empty_cou<=0:
+                            return
+                        (lon_mi,lat_mi,lon_ma,lat_ma)=self.area_grid.getGPS(row_num, col_num,ser_num)
+                        return (taxi_no,empty_cou,flameout_cou,row_num,col_num,ser_num,lon_mi,lat_mi,lon_ma,lat_ma)
+#                     if linetemp=='\"\r\n' or linetemp==None:
+#                         continue
+#                     linetemp=linetemp.encode('utf-8').replace("陕",'').replace("\"",'').replace("灯",'').replace("交",'').replace("测",'')        
+#                     print(linetemp)
+#                     linelist=linetemp.split(",")
+#                     (ser_num,row_num,col_num,empty_cou,flameout_cou)=(int(linelist[0]),int(linelist[1]),int(linelist[2]),int(linelist[3]),int(linelist[4]))  
+#                     if empty_cou!=0:
+#                         (lon_mi,lat_mi,lon_ma,lat_ma)=self.area_grid.getGPS(row_num, col_num,ser_num)
+#                         shiftlist.append((taxi_no,empty_cou,flameout_cou,row_num,col_num,ser_num,lon_mi,lat_mi,lon_ma,lat_ma))
+        except Exception as e:
+            print(e)
+            return
+#         print(datetime.datetime.now())
+#         shiftlist=sorted(shiftlist, key=itemgetter(1),reverse=True)#空车次数多的在前面
+#         return shiftlist[0]
+        
+    def find_shift_all_taxi(self):#追踪所有的出租车，一共11728辆，将其上车、下车的次数加入相应的区域格子，基于内存和文件
+
+        f = open("taxi\\result1All_20141017.txt") 
+        writer=csv.writer(file('F:\\TaxiData\\shift_grid\\shift_top\\statistic_grid_0101_all_shift_top_fast.csv','wb'))
+        writer.writerows(('taxi_no','empty_cou','flameout_cou','row_num','col_num','ser_num','lon_mi','lat_mi','lon_ma','lat_ma'))
+        line = f.readline()  
+        i=0          
+        while line!="\n" and line:
+            i+=1
+       
+            line = f.readline()
+        
+            taxiNo=(line.strip('\n')).replace('陕','').replace("灯",'').replace("交",'').replace("测",'')
+            print (taxiNo,i)  
+            reslist=self.find_shift_1_taxi(taxiNo,i)   
+            if reslist:
+                writer.writerow(reslist)
+                              
+            line = f.readline()
+        f.close()  
 
 if __name__ == '__main__':
     
@@ -182,10 +238,12 @@ if __name__ == '__main__':
     each_grid_len=50#划分的每个格子的边长
     connstr="manage_taxi/taxixjtu@traffic"     
     taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
-#     taxiStatistics.stat_shift_all_taxi()
-    a=AreaGrid(lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
-    (lon_mi,lat_mi,lon_ma,lat_ma)=a.getGPS(203,388,155322)
-    print(lon_mi,lat_mi,lon_ma,lat_ma)
+    taxiStatistics.stat_shift_all_taxi()
+#     taxiStatistics.find_shift_all_taxi()
+
+#     a=AreaGrid(lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
+#     (lon_mi,lat_mi,lon_ma,lat_ma)=a.getGPS(203,388,155322)
+#     print(lon_mi,lat_mi,lon_ma,lat_ma)
 
 
     

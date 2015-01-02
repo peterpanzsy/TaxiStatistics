@@ -18,7 +18,7 @@ import fileinput
 import thread
 from operator import itemgetter, attrgetter  
 import csv
-
+import urllib2
 class OraConn():
     def __init__(self,connstr="manage_taxi/taxixjtu@traffic" ):
         self.connstr =connstr # "manage_taxi/taxixjtu@traffic" 
@@ -141,6 +141,42 @@ class TaxiStatistics():
             file_object.write(gps_time+","+longitude+","+latitude+","+car_stat1+'\n')        
         file_object.close()
         conn.close()
+    def trans_coordinate_to_distance(sourceLon,sourceLat,targetLon,targetLat):#请求百度API得到单子起点终点之间的距离
+        '''
+                    输入：出租车单子记录，没有计算起点到终点距离的
+                    输出：出租车单子记录，计算起点终点估算距离
+                     处理过程：
+                     从文件1中读取每一行记录，通过字符串分割获取各字段值。
+                     请求百度地图API计算距离信息，返回信息。
+                     重新赋值字段信息，将新的字段信息写入文件2：
+        '''
+        duration=""
+        distance=""
+        url = "http://api.map.baidu.com/direction/v1?mode=driving&origin="+sourceLat+","+sourceLon+"&destination="+targetLat+","+targetLon+"&origin_region=西安&destination_region=西安&output=json&ak=53fb5a6c9ddba227f1af1992d3476d6d"
+        req = urllib2.Request(url)
+        try:
+            print("req begin")
+            res_data = urllib2.urlopen(req,timeout=5)
+            print("req over")
+            res = json.loads(res_data.read(),encoding='UTF-8')
+            print("res.read")
+            result=res['result']
+        except Exception as e:
+            print(e)
+        try:
+            day_price=result['taxi']['detail'][0]['total_price']
+            night_price=result['taxi']['detail'][1]['total_price']
+            duration=result['taxi']['duration']
+            distance=result['taxi']['distance']
+            eDistance=distance 
+            return (duration,distance)
+        except Exception as e:
+            print(e)
+            print(result)
+        return (duration,distance)
+            
+    
+    
     def track_one_taxi(self,taxiNum):#追踪一辆车一天的单子，包括起点、终点，出发时间、到达时间、持续时间
         proBeginTime=datetime.datetime.now()
         print(proBeginTime)
@@ -152,7 +188,9 @@ class TaxiStatistics():
         result=cur.execute(sql,pr) 
         row=cur.fetchone() 
 #         file_object = open('track100Taxi20141016.txt', 'a')
-        file_object = open('track\\trackAllTaxi20141021.txt', 'a')
+#         file_object = open('track\\trackAllTaxi20141021.txt', 'a')
+        file_csv= file('F:\\TaxiData\track\\track_trade_all_taxi_0101.csv','wb')
+        track_writer = csv.writer(file_csv)
 #         file_object.write("\n"+taxiNum+"的轨迹:\n")             
  
         rDistance=""
@@ -177,8 +215,9 @@ class TaxiStatistics():
                     i+=1
                     res=str(i)+","+taxiNum+","+sourceLon+","+sourceLat+","+targetLon+","+targetLat+","+beginTime.strftime("%Y-%m-%d %H:%M:%S")+","+endTime.strftime("%Y-%m-%d %H:%M:%S")+","+lastTime.__str__()+","+rDistance+","+eDistance+'\n'
                     print (res)
-                    file_object.writelines(res) 
-                 
+                    (duration,distance)=trans_coordinate_to_distance(sourceLon,sourceLat,targetLon,targetLat)
+#                     file_object.writelines(res) 
+                    track_writer.writerow([str(i),taxiNum,sourceLon,sourceLat,targetLon,targetLat,beginTime.strftime("%Y-%m-%d %H:%M:%S"),endTime.strftime("%Y-%m-%d %H:%M:%S"),lastTime.__str__(),duration,rDistance,distance])            
             row=cur.fetchone ()  
         conn.close()     
         proEndTime=datetime.datetime.now()
@@ -188,7 +227,7 @@ class TaxiStatistics():
 #         file_object.write("\nend time:"+proEndTime.strftime("%Y-%m-%d %H:%M:%S"))
 #         file_object.write("\nlast time:"+(proEndTime-proBeginTime).__str__())
         
-        file_object.close()   
+#         file_object.close()   
     def track_all_taxi(self):#追踪所有的车一天的单子，包括车牌、起点、终点，出发时间、到达时间、持续时间
         f=open("track\\trackAllTaxi20141021.txt")#获取最后一条已经跟踪的记录
         linecount=len(f.readlines())
@@ -568,5 +607,5 @@ if __name__ == '__main__':
     taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
 #     taxiStatistics.stat_shift_all_taxi()
 #    thread.start_new_thread(taxiStatistics.stat_grid_all_taxi())#需要修改生成的最后一个文件的路径
-#    thread.start_new_thread(taxiStatistics.track_all_taxi())#可直接执行
+    thread.start_new_thread(taxiStatistics.track_all_taxi())#可直接执行
     
