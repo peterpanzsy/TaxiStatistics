@@ -52,7 +52,7 @@ class AreaGrid():
             self.row_num_sum=int(((self.lat_max-self.lat_min)*self.each_lat_len)//self.each_grid_len)
         else:
             self.row_num_sum=int(((self.lat_max-self.lat_min)*self.each_lat_len)//self.each_grid_len)+1#总行数，最后一个格子可能不足 each_grid_len的长度
-        self.grid_num_sum=self.row_num_sum*self.col_num_sum
+        self.grid_num_sum=self.row_num_sum*self.col_num_sum #838*767=642746
     def getPosition(self,lon_v,lat_v):#根据经纬度，返回该地点在第几个格子
         if lon_v>self.lon_min and lon_v<self.lon_max and lat_v>self.lat_min and lat_v<self.lat_max:            
             mod_res=(lon_v-self.lon_min)*self.each_lon_len%self.each_grid_len
@@ -108,11 +108,13 @@ class TaxiStatistics():
         #查询出该车的所有记录（一天）
         conn = cx_Oracle.Connection(self.connstr)  
         cur = conn.cursor() 
-        sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
+        #sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
+        sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0102 t where t.licenseplateno like :taxiNo order by t.gps_time"
         result=cur.execute(sql,pr) 
         row=cur.fetchone() 
 #         file_object = open('track100Taxi20141016.txt', 'a')
-        file_object = open('track\\trackAllTaxi20141021.txt', 'a')
+#         file_object = open('track\\trackAllTaxi20141021.txt', 'a')
+        file_object = open('track\\trackAllTaxi20140102at20151204.txt', 'a')
 #         file_object.write("\n"+taxiNum+"的轨迹:\n")             
  
         rDistance=""
@@ -145,10 +147,12 @@ class TaxiStatistics():
         print(proEndTime)
         file_object.close()   
     def track_all_taxi(self):#追踪所有的车一天的单子，包括车牌、起点、终点，出发时间、到达时间、持续时间
-        f=open("track\\trackAllTaxi20141021.txt")#获取最后一条已经跟踪的记录
+#         f=open("track\\trackAllTaxi20141021.txt")#获取最后一条已经跟踪的记录
+        f = open("track\\trackAllTaxi20140102at20151204.txt");
         linecount=len(f.readlines())
         f.close()
-        f=open("track\\trackAllTaxi20141021.txt")
+#         f=open("track\\trackAllTaxi20141021.txt")
+        f = open("track\\trackAllTaxi20140102at20151204.txt");
         targetLine = "";
         track_tuple=""
         lineNo = 0;  
@@ -341,14 +345,14 @@ class TaxiStatistics():
 if __name__ == '__main__':
     
     '''
-    整个西安的经纬度范围
+    整个西安的经纬度范围  642746
     '''
     lon_min = 108.7186431885
     lon_max = 109.1677093506
     lat_min = 34.0950320079
     lat_max = 34.4711842426
     '''
-    三环内的经纬度范围估计值
+    三环内的经纬度范围估计值115884个格子
     '''
 #     lon_min=108.852775#最小经度
 #     lon_max=109.056295#最大经度
@@ -356,7 +360,12 @@ if __name__ == '__main__':
 #     lat_max=34.349599#最大纬度
     each_lon_len=85300#每单位经度的长度
     each_lat_len=111300#每单位纬度的长度
+#     93980.35455699515
+#     108731.79739859098
+
     each_grid_len=50#划分的每个格子的边长
     connstr="manage_taxi/taxixjtu@traffic"     
-    taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
-    taxiStatistics.stat_grid_all_taxi_meanwhile()
+#     taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
+#     taxiStatistics.stat_grid_all_taxi_meanwhile()
+#     taxiStatistics.track_all_taxi()
+    a=AreaGrid(lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
