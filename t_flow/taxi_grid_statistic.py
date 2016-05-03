@@ -109,12 +109,12 @@ class TaxiStatistics():
         conn = cx_Oracle.Connection(self.connstr)  
         cur = conn.cursor() 
         #sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0101 t where t.licenseplateno like :taxiNo order by t.gps_time"
-        sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG0102 t where t.licenseplateno like :taxiNo order by t.gps_time"
+        sql="select t.gps_time,t.longitude,t.latitude,t.car_stat1 from GPS_LOG20140111 t where t.licenseplateno like :taxiNo order by t.gps_time"
         result=cur.execute(sql,pr) 
         row=cur.fetchone() 
 #         file_object = open('track100Taxi20141016.txt', 'a')
 #         file_object = open('track\\trackAllTaxi20141021.txt', 'a')
-        file_object = open('track\\trackAllTaxi20140102at20151204.txt', 'a')
+        file_object = open('F:\\TaxiData\\track\\trackAllTaxi20140111at20160504.txt', 'a')
 #         file_object.write("\n"+taxiNum+"的轨迹:\n")             
  
         rDistance=""
@@ -148,11 +148,11 @@ class TaxiStatistics():
         file_object.close()   
     def track_all_taxi(self):#追踪所有的车一天的单子，包括车牌、起点、终点，出发时间、到达时间、持续时间
 #         f=open("track\\trackAllTaxi20141021.txt")#获取最后一条已经跟踪的记录
-        f = open("track\\trackAllTaxi20140102at20151204.txt");
+        f = open("F:\\TaxiData\\track\\trackAllTaxi20140111at20160504.txt");
         linecount=len(f.readlines())
         f.close()
 #         f=open("track\\trackAllTaxi20141021.txt")
-        f = open("track\\trackAllTaxi20140102at20151204.txt");
+        f = open("F:\\TaxiData\\track\\trackAllTaxi20140111at20160504.txt");
         targetLine = "";
         track_tuple=""
         lineNo = 0;  
@@ -365,7 +365,7 @@ if __name__ == '__main__':
 
     each_grid_len=50#划分的每个格子的边长
     connstr="manage_taxi/taxixjtu@traffic"     
-#     taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
+    taxiStatistics=TaxiStatistics(connstr,lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
 #     taxiStatistics.stat_grid_all_taxi_meanwhile()
-#     taxiStatistics.track_all_taxi()
-    a=AreaGrid(lon_min,lon_max,lat_min,lat_max,each_lon_len,each_lat_len,each_grid_len)
+    taxiStatistics.track_all_taxi()
+    
